@@ -34,7 +34,7 @@ Stop writing the same Autotask API boilerplate every time. These skills give you
 
 ```bash
 # Clone and install
-git clone https://github.com/YOUR_USERNAME/autotask-ai-skills.git
+git clone https://github.com/adit7494/autotask-ai-skills.git
 cd autotask-ai-skills
 bash install.sh --tool claude
 ```
@@ -60,7 +60,7 @@ bash install.sh --all
 ### Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/autotask-ai-skills.git
+git clone https://github.com/adit7494/autotask-ai-skills.git
 cd autotask-ai-skills
 .\install.ps1 -Tool claude
 # or
@@ -109,7 +109,7 @@ Set up push-based notifications for companies, contacts, tickets, assets, and ti
 
 **Option A: Automated (Recommended)**
 ```bash
-git clone https://github.com/YOUR_USERNAME/autotask-ai-skills.git
+git clone https://github.com/adit7494/autotask-ai-skills.git
 cd autotask-ai-skills
 bash install.sh --tool claude
 ```
@@ -273,8 +273,8 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## 📬 Support
 
-- **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/autotask-ai-skills/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/autotask-ai-skills/discussions)
+- **Issues**: [GitHub Issues](https://github.com/adit7494/autotask-ai-skills/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/adit7494/autotask-ai-skills/discussions)
 
 ---
 
