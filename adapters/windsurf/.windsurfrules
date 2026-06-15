@@ -1,0 +1,434 @@
+# Autotask PSA REST API Reference
+
+## Authentication
+
+Four required headers on every request:
+
+| Header | Value |
+|--------|-------|
+| `Username` | API user email |
+| `Secret` | API user password |
+| `APIIntegrationcode` | Vendor or custom integration tracking ID |
+| `Content-Type` | `application/json` |
+
+Optional: `ImpersonationResourceId` header to act as another resource.
+
+**Rules:**
+- Only **API User (API-only)** security level can access REST API
+- TLS 1.2 required; SSO not supported for API
+- Never expire API-only user passwords (they cannot log into UI)
+- Unlimited API-only users, no per-seat charge
+
+## Zone Discovery
+
+First call `ZoneInformation` (unauthenticated) to get the correct base URL:
+
+```
+GET https://webservices[n].autotask.net/atservicesrest/v1.0/ZoneInformation?user={email}
+```
+
+Common zones:
+- America East: `webservices3.autotask.net`
+- America West: `webservices8.autotask.net`
+- UK: `webservices4.autotask.net`
+- EU1: `webservices5.autotask.net`
+- Australia/NZ: `webservices6.autotask.net`
+
+Base URL pattern: `https://webservices[n].autotask.net/atservicesrest/v1.0/{EntityName}`
+
+## Query Syntax
+
+### Filter Operators
+
+| Operator | Description |
+|----------|-------------|
+| `eq` | Equals |
+| `noteq` | Not equals |
+| `gt` / `gte` | Greater than (or equal) |
+| `lt` / `lte` | Less than (or equal) |
+| `beginsWith` | Starts with |
+| `endsWith` | Ends with |
+| `contains` | Contains string |
+| `exist` | Field is not null |
+| `notExist` | Field is null |
+| `in` | Value in list |
+| `notIn` | Value not in list |
+
+### Basic Filter (GET)
+
+```
+?search={"filter":[{"op":"eq","field":"CompanyName","value":"ACME Corp"}]}
+```
+
+### AND/OR Grouping
+
+```json
+{
+  "filter": [
+    {"op": "eq", "field": "IsActive", "value": true},
+    {
+      "op": "or",
+      "items": [
+        {"op": "eq", "field": "Status", "value": 1},
+        {"op": "eq", "field": "Status", "value": 2}
+      ]
+    }
+  ]
+}
+```
+
+Max 500 OR conditions per call.
+
+### UDF Queries
+
+Add `"udf": true` to filter on user-defined fields:
+
+```json
+{"op": "eq", "field": "CustomerRanking", "udf": true, "value": "Golden"}
+```
+
+Max 5 unique UDFs per query (C# entities), 1 per query (VB entities).
+
+### Field Selection and Pagination
+
+```json
+{
+  "IncludeFields": ["Id", "companyName", "phone"],
+  "MaxRecords": 100,
+  "filter": [...]
+}
+```
+
+MaxRecords range: 1-500 per page. Follow `nextPageUrl` in `pageDetails` until null. API retains 50 most recent pages.
+
+### POST for Complex Queries
+
+Use `POST /{EntityName}/query` for complex queries to avoid 2048-char URL limit.
+
+## Entity Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/{EntityName}/{id}` | Get single record |
+| GET | `/{EntityName}/query` | Query with filters |
+| GET | `/{EntityName}/query/count` | Count matching records |
+| POST | `/{EntityName}/query` | Complex query (body) |
+| POST | `/{EntityName}` | Create record (set id to "0") |
+| PUT | `/{EntityName}` | Update ALL properties |
+| PATCH | `/{EntityName}` | Partial update only |
+| DELETE | `/{EntityName}/{id}` | Delete record |
+
+Metadata endpoints:
+- `/{EntityName}/entityInformation` -- CRUD permissions
+- `/{EntityName}/entityInformation/fields` -- Field definitions and picklist values
+- `/{EntityName}/entityInformation/userDefinedFields` -- UDF definitions
+
+## Key Entities
+
+### Tickets
+
+Entities: `Tickets`, `TicketNotes`, `TicketCharges`, `TicketHistory`, `TicketSecondaryResources`, `TicketCategories`, `TicketChecklistItems`, `TicketAdditionalContacts`, `TicketAdditionalConfigurationItems`, `TicketTagAssociations`, `ServiceLevelAgreementResults`
+
+Key fields: `id`, `ticketNumber`, `title`, `status` (1=New, 2=In Progress, 3=Waiting Customer, 4=Waiting Vendor, 5=Complete, 6=Cancelled, 7=Resolved), `priority`, `companyID`, `contactID`, `assignedResourceID`, `queueID`, `ticketType`, `source`, `billingCodeID`, `contractID`, `configurationItemID`, `projectID`, `dueDateTime`, `description`, `resolution`, `createDate`, `completedDate`, `lastActivityDate`, `firstResponseDateTime`, `resolvedDateTime`
+
+Limits: 50 secondary resources, 40 checklist items, 30 additional contacts, 100 additional CIs, 30 tags per ticket.
+
+### Companies and Contacts
+
+Entities: `Companies` (max 200 UDFs), `Contacts` (max 100 UDFs), `CompanyNotes`, `CompanyLocations` (max 5000 per company), `CompanyAlerts`, `CompanyTeams`, `CompanyCategories`, `ContactGroups`, `ContactGroupContacts`, `ClientPortalUsers`
+
+Companies key fields: `id`, `companyName`, `companyType` (1=Customer, 2=Lead, 3=Prospect, 4=Dead, 5=Cancelation, 6=Vendor, 7=Partner), `companyCategoryID`, `ownerResourceID`, `phone`, `address1`, `city`, `state`, `postalCode`, `countryID`, `isActive`, `parentCompanyID`, `webAddress`
+
+Contacts key fields: `id`, `firstName`, `lastName`, `companyID` (read-only after create), `emailAddress`, `phone`, `isActive`, `primaryContact` (only one per company)
+
+### Projects and Tasks
+
+Entities: `Projects` (max 200 UDFs), `Tasks` (max 100 UDFs), `Phases`, `TaskPredecessors`, `TaskSecondaryResources` (max 50 per task), `ProjectCharges`, `ProjectNotes`
+
+Projects key fields: `id`, `projectName`, `companyID` (read-only after create), `projectType` (read-only), `status`, `startDateTime`, `endDateTime`, `estimatedHours` (read-only), `actualHours` (read-only), `laborEstimatedRevenue`, `laborEstimatedCosts`, `completedPercentage` (read-only)
+
+Tasks key fields: `id`, `title`, `projectID` (cannot change on update), `status` (5=Complete zeros remainingHours), `taskType`, `startDateTime`, `endDateTime`, `estimatedHours`, `assignedResourceID`, `billingCodeID`, `phaseID`, `description`, `completedDateTime` (read-only), `remainingHours` (not queryable)
+
+### Contracts
+
+Entities: `Contracts` (max 50 UDFs, cannot delete), `ContractServices`, `ContractServiceBundles`, `ContractBlocks`, `ContractRetainers`, `ContractMilestones`, `ContractTicketPurchases`, `ContractBillingRules`, `ContractRates`, `ContractRoleCosts`, `ContractExclusionSets`, `ContractExclusionRoles`, `ContractExclusionBillingCodes`, `ContractServiceAdjustments` (create only), `ContractServiceBundleAdjustments` (create only), `ContractServiceUnits` (query only), `ContractServiceBundleUnits` (query only), `ContractBlockHourFactors`, `ContractNotes`, `ContractCharges`
+
+Key fields: `id`, `contractName`, `contractType` (read-only on create), `companyID` (read-only after create), `status`, `startDate`, `endDate`, `billingPreference` (default: 2), `serviceLevelAgreementID`, `description`, `isDefaultContract`
+
+### Contract Types
+
+| Type ID | Name | Billing Model | Key Sub-Entity |
+|---------|------|---------------|----------------|
+| 1 | Time & Materials | Bill actual hours/rates | Standard billing |
+| 2 | Fixed Price | Milestone-based | ContractMilestones |
+| 3 | Block Hours | Pre-purchased blocks | ContractBlocks |
+| 4 | Retainer | Pre-paid amount | ContractRetainers |
+| 5 | Incident | Per-ticket prepayment | ContractTicketPurchases |
+| 7 | Recurring Service | Fixed monthly fee | ContractServices, ContractServiceBundles |
+
+### Resources and Time Entries
+
+Entities: `Resources` (cannot delete), `TimeEntries` (no UDFs), `ResourceRoles` (query only), `ResourceRoleDepartments`, `ResourceRoleQueues`, `ResourceServiceDeskRoles`, `ResourceSkills`, `ResourceDailyAvailabilities`, `ResourceTimeOffBalances` (query only), `Departments`, `Roles`, `Appointments`
+
+Resources key fields: `id`, `firstName`, `lastName`, `email`, `userName` (must be unique), `isActive`, `resourceType`, `licenseType` (read-only), `userType` (read-only), `hireDate` (read-only), `internalCost` (read-only, returns 0 without permissions)
+
+TimeEntries key fields: `id`, `resourceID`, `roleID`, `dateWorked`, `startDateTime`, `endDateTime`, `hoursWorked` (0-24), `hoursToBill` (read-only), `billingCodeID`, `contractID`, `ticketID`, `taskID`, `timeEntryType` (2=Ticket, 6=Task), `isNonBillable`, `summaryNotes` (required for tickets), `internalNotes`
+
+### Products and Inventory
+
+Entities: `Products` (max 100 UDFs, cannot delete), `ProductTiers`, `ProductVendors`, `InventoryItems`, `InventoryLocations`, `InventoryProducts`, `InventoryStockedItems` (query/update only), `InventoryStockedItemsAdd` (create only), `InventoryStockedItemsRemove` (create only), `InventoryStockedItemsTransfer` (create only), `InventoryTransfers`, `InventoryItemSerialNumbers`, `PurchaseOrders`, `PurchaseOrderItems`, `PurchaseOrderItemReceiving` (create only)
+
+Products key fields: `id`, `name`, `isActive`, `isSerialized`, `productCategory`, `chargeBillingCodeID`, `unitCost` (requires cost permissions), `unitPrice`, `billingType`, `description`, `manufacturerName`, `sKU`
+
+PurchaseOrders key fields: `id`, `vendorID` (must be Vendor type company), `status` (1=New, 2=Submitted, 3=Partial, 4=Received, 5=Cancelled), `shipToName`, `shipToAddress1`, `purchaseOrderNumber` (read-only)
+
+### Opportunities and Quotes
+
+Entities: `Opportunities` (max 200 UDFs, cannot delete), `OpportunityCategories`, `Quotes` (cannot delete), `QuoteItems`, `QuoteTemplates` (query only), `SalesOrders` (max 100 UDFs)
+
+Opportunities key fields: `id`, `title`, `companyID`, `ownerResourceID` (must be active CRM resource), `status`, `amount`, `probability` (0-100), `projectedCloseDate`, `startDate` (read-only), `stage` (read-only), `cost`, `description`, `lossReason`, `winReason`, `leadSource`, `contactID`
+
+Quotes key fields: `id`, `name`, `opportunityID` (read-only after create), `effectiveDate`, `expirationDate`, `billToLocationID`, `shipToLocationID`, `soldToLocationID`, `primaryQuote` (one per opportunity)
+
+### Billing
+
+Entities: `BillingItems` (query/update only), `BillingCodes` (query only), `BillingItemApprovalLevels`, `Invoices` (mostly read-only), `InvoiceTemplates` (query only)
+
+BillingItems key fields: `id`, `companyID`, `contractID`, `ticketID`, `taskID`, `billingCodeID`, `roleID`, `quantity`, `rate`, `extendedPrice`, `ourCost` (requires cost permissions), `postedDate`, `billingItemType` (1=Labor, 2=ProjectCost, 3=Cost, 4=Expense, 5=Subscription, 6=RecurringService, 7=RecurringServices, 8=Milestone)
+
+## Webhooks
+
+### Supported Entities and Events
+
+| Entity | Events |
+|--------|--------|
+| Companies (Accounts) | Create, Update, Delete |
+| Contacts | Create, Update, Delete |
+| ConfigurationItems (Assets) | Create, Update, Delete |
+| Tickets | Create, Update, Delete |
+| Ticket Notes | Create, Update, Delete |
+
+Events: `Create` (any record creation), `Update` (at least one callout field or UDF changed), `Delete` (record deletion), `Deactivate` (webhook deactivated after repeated failures)
+
+### Setup Requirements
+
+1. API-only user with security level that includes `Can create WebHooks` permission
+2. Separate resource per integration (best practice)
+3. Public HTTPS endpoint on port 443
+4. TLS 1.2+ required
+
+### Webhook Management Entities
+
+| Entity | Purpose |
+|--------|---------|
+| `TicketWebhooks` / `CompanyWebhooks` / `ContactWebhook` / `ConfigurationItemWebhooks` / `TicketNoteWebhooks` | CRUD for webhooks |
+| `*WebhookFields` | Fields that trigger/include in payload |
+| `*WebhookExcludedResources` | Resources whose changes don't trigger |
+| `*WebhookUdfFields` | UDF fields for webhooks |
+| `WebhookEventErrorLogs` | Error logs (30-day retention) |
+
+### Payload Structure
+
+```json
+{
+  "entityId": 12345,
+  "entityType": "Ticket",
+  "eventType": "Update",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "fields": {
+    "id": 12345,
+    "ticketNumber": "T20240115.0001",
+    "title": "Server Down",
+    "status": 2
+  },
+  "userDefinedFields": [
+    {"name": "CustomField1", "value": "Some Value"}
+  ]
+}
+```
+
+### Security Considerations
+
+- Webhooks only fire if owner has entity permissions
+- Owner must have Protected Data Permissions and appropriate LOB access
+- Create separate API users per integration
+- Webhooks auto-deactivate after repeated delivery failures
+- Monitor with `WebhookEventErrorLogs`
+
+## KPI Patterns
+
+### Ticket KPIs
+
+- **Open Volume:** Filter `Tickets` where `status != 5`, group by priority/queue/resource
+- **Avg Resolution Time:** `AVG(completedDate - createDate)` for status=5, group by priority
+- **SLA Compliance:** Query `ServiceLevelAgreementResults` (query-only), calculate % first response met, % resolution met
+- **Ticket Aging:** Filter open tickets, group by age buckets (0-24h, 24-48h, 3-7d, 7-14d, 14+d)
+- **First Response Time:** `MIN(TicketNotes.createDateTime) - Tickets.createDate` per ticket
+
+### Resource Utilization KPIs
+
+- **Hours Logged:** Query `TimeEntries` by date range, group by `resourceID`, sum `hoursWorked`
+- **Utilization %:** `billableHours / totalHours * 100`
+- **Availability:** Query `ResourceDailyAvailabilities`
+- **Time Off:** Query `ResourceTimeOffBalances` (query-only)
+
+### Financial KPIs
+
+- **Revenue by Contract:** Query `BillingItems`, group by `contractID`, sum `extendedPrice`
+- **MRR:** `SUM(unitPrice * quantity)` for active `ContractServices`
+- **Block Utilization:** Track via `TimeEntries` with `contractID` (not direct hoursUsed)
+- **Outstanding Invoices:** `Invoices` where `paidDate` is null, sum `invoiceTotal`
+
+### Sales KPIs
+
+- **Pipeline Value:** `SUM(amount * probability / 100)` from `Opportunities`
+- **Win Rate:** `wonOpportunities / totalClosedOpportunities * 100`
+- **Contract Expiration:** Filter `Contracts` by `endDate` range
+
+### Inventory KPIs
+
+- **Stock Levels:** Query `InventoryStockedItems` for `onHandUnits`, `availableUnits`, `reservedUnits`
+- **Reorder Alerts:** Items where `onHandUnits <= quantityMinimum` from `InventoryProducts`
+- **Inventory Value:** `SUM(onHandUnits * unitCost)` (requires cost permissions)
+
+## User-Defined Fields (UDFs)
+
+### UDF-Supported Entities and Limits
+
+| Entity | Max UDFs |
+|--------|----------|
+| Companies | 200 |
+| Contacts | 100 |
+| Contracts | 50 |
+| ConfigurationItems | 500 |
+| Opportunities | 200 |
+| Products | 100 |
+| Projects | 200 |
+| SalesOrders | 100 |
+| Services | 100 |
+| ServiceBundles | 100 |
+| Subscriptions | 100 |
+| Tasks | 100 |
+| Tickets | 300 |
+| CompanySiteConfigurations | 500 |
+
+### UDF Data Types and Operators
+
+| Type | Supported Operators |
+|------|---------------------|
+| String | eq, noteq, beginsWith, endsWith, contains |
+| Number | eq, noteq, gt, gte, lt, lte |
+| Date | eq, noteq, gt, gte, lt, lte |
+| List | eq, noteq, in, notIn |
+| Boolean | eq |
+
+### UDF Response Format
+
+UDF values appear in `userDefinedFields` array on entity responses:
+
+```json
+{
+  "id": 12345,
+  "companyName": "ACME Corp",
+  "userDefinedFields": [
+    {"name": "CustomerRanking", "value": "Golden"},
+    {"name": "ContractRenewalDate", "value": "2024-06-01"}
+  ]
+}
+```
+
+### UDF Best Practices
+
+- Use UDFs for integration data, not External fields
+- Max 5 unique UDFs per query (C# entities)
+- Cannot delete UDFs via API
+- Cannot query multi-select or reference UDFs
+- Protected UDF queries are case-sensitive
+- Use `exist`/`notExist` for null checks
+
+## Inventory Quick Reference
+
+### Stock Operations
+
+| Operation | Entity | Method |
+|-----------|--------|--------|
+| Add stock | `InventoryStockedItemsAdd` | POST (create only) |
+| Remove stock | `InventoryStockedItemsRemove` | POST (create only) |
+| Transfer stock | `InventoryStockedItemsTransfer` | POST (create only) |
+| View stock | `InventoryStockedItems` | GET (query/update) |
+| View products at locations | `InventoryProducts` | GET |
+
+### Serialized vs Non-Serialized
+
+- Serialized: `quantityTransferred` must = 1; sum of onHand+reserved+transferred+removed+picked+delivered = 1
+- Non-serialized: Sum equals `purchaseOrderItemReceiving.quantityPreviouslyReceived`
+
+## Data Warehouse
+
+For complex reporting with SQL joins and aggregations:
+
+| Parameter | Value |
+|-----------|-------|
+| Protocol | Microsoft SQL Server |
+| Port | 1433 |
+| Refresh | Daily at 4:00 AM ET (North America), 4:00 PM ET (Global) |
+| Auth | Separate credentials from API |
+
+Check freshness: `SELECT * FROM warehouse_last_load`
+
+Common views: `v_ticket`, `v_time_entry`, `v_resource`, `v_account`, `v_contact`, `v_project`, `v_task`, `v_contract`, `v_billing_item`, `v_invoice`, `v_opportunity`, `v_product`, `v_inventory_item`, `v_purchase_order`, `v_sla_result`, `v_survey_result`
+
+Use Data Warehouse for: complex joins, aggregations, historical analysis, BI tool integration. Use REST API for: real-time CRUD, simple lookups, webhook-triggered workflows.
+
+## Best Practices
+
+1. **Use webhooks over polling** -- Near real-time, reduces API consumption
+2. **Query by LastModifiedDate** -- Return only changed records for incremental syncs
+3. **Serialize requests** -- Minimize concurrency lock issues
+4. **Use POST for complex queries** -- Avoids 2048-char URL limit
+5. **Monitor threshold usage** -- Check `/ThresholdInformation` endpoint (10,000 req/hr limit)
+6. **Don't use External fields** -- Use UDFs for integration data
+7. **Set Ticket.Source** -- Identify integration-created tickets
+8. **Copy API security level** -- Don't modify the default system level
+9. **Use IncludeFields** -- Only fetch fields you need
+10. **Filter by date ranges** -- Don't fetch all historical data
+11. **Use /query/count** -- Get counts without fetching records
+12. **Cache entity metadata** -- Fetch field definitions once, reuse
+13. **Handle timezone** -- All API times in UTC; convert for display
+14. **Boolean fields** -- Must be `true` or `false`, not null
+15. **Picklist values** -- May differ by account; verify via `entityInformation/fields`
+16. **Rate limits** -- 0-49.99% usage = 0 sec delay, 50-74.99% = 0.5 sec, 75%+ = 1 sec
+
+## Date-Time Format
+
+All timestamps in UTC: `yyyy-mm-ddThh:mm:ss.ms`
+
+Date-only fields force time to midnight (no timezone conversion).
+
+## CRUD Notes
+
+- **POST:** Set `id` to `"0"` for new records; response returns `itemId` on HTTP 200
+- **PUT:** Updates ALL properties; omitted fields set to null; must include `id` and all writable fields
+- **PATCH:** Updates ONLY specified fields; more efficient for partial changes
+- **DELETE:** URL `/{EntityName}/{id}`, no body needed, returns `itemId`
+- **Rich Text:** API returns text-only; updating Rich Text fields loses formatting and images
+
+## Rate Limits
+
+| Usage | Added Latency |
+|-------|---------------|
+| 0-49.99% of 10,000/hr | 0 sec |
+| 50-74.99% | 0.5 sec |
+| 75%+ | 1 sec |
+
+Monitor via: `GET /v1.0/ThresholdInformation`
+
+## Swagger UI
+
+Access at: `[platform URL]/swagger/ui/index`
+
+Browse entities, test queries, and explore field definitions interactively.
+
+## Reference
+
+Full documentation: https://www.autotask.net/help/developerhelp/Content/0_HOME/HOME.htm

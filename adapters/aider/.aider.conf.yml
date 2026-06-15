@@ -1,0 +1,30 @@
+# Aider Configuration for Autotask PSA Projects
+# ================================================
+#
+# Setup:
+#   1. Copy this file to your project root: .aider.conf.yml
+#   2. Set your preferred model below (or use AIDER_MODEL env var)
+#   3. Aider will load AUTOTASK_CONVENTIONS.md as coding conventions
+#   4. Run: aider
+#
+# The conventions file provides full Autotask PSA API context so Aider
+# generates correct API calls, entity queries, and integration code.
+#
+# Docs: https://aider.chat/docs/config/aider_conf.html
+# -----
+
+# Model -- replace with your preferred model or set AIDER_MODEL env var
+model: openai/<your-model-here>
+
+# Disable auto-commits so you control when changes are committed
+auto-commits: false
+
+# Load the Autotask conventions as a read-only context file
+read:
+  - AUTOTASK_CONVENTIONS.md
+
+# Auto-lint after edits
+auto-lint: true
+
+# Show diffs after each change
+show-diffs: true
