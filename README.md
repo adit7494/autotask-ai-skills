@@ -6,6 +6,7 @@
 ![AI Tools](https://img.shields.io/badge/compatible-6_AI_tools-purple)
 
 > **AI-powered skills for Autotask PSA integration — works with Claude Code, Cursor, Windsurf, Continue, Aider, and GitHub Copilot.**
+<img width="1556" height="632" alt="image" src="https://github.com/user-attachments/assets/ac747b56-5c6d-4aba-b638-f34d5c9e1077" />
 
 Stop writing the same Autotask API boilerplate every time. These skills give your AI assistant deep knowledge of the Autotask PSA REST API — 226+ entities, query patterns, KPI formulas, webhook setup, inventory management, and more.
 
